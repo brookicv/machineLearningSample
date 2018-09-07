@@ -20,3 +20,10 @@ args = vars(ap.parse_args())
 # grab the list of images that we'll be describing
 print("[INFO] loading images...")
 imagePaths = list(paths.list_images(args["dataset"]))
+
+sp = simplePreprocessor.SimplePreprocessor(32,32)
+sdl = simpleDatasetLoader.SimpleDatasetLoader(preprocessors=[sp])
+(data,labels) = sdl.load(imagePaths,verbose=500)
+data = data.reshape((data.reshape[0]),3072)
+
+print("[INFO] features matrix:{:.1f}MB".format(data.nbytes / (1024 * 1000.0)))
