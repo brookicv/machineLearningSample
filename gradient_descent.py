@@ -66,7 +66,7 @@ print(classification_report(testY,preds))
 plt.style.use("ggplot")
 plt.figure()
 plt.title("Data")
-plt.scatter(testX[:,0],testX[:,1],marker="o",c=testY,s=30)
+plt.scatter(testX[:,0],testX[:,1],marker="o")
 
 # construct a figure that plots the loss over time
 plt.style.use("ggplot")
