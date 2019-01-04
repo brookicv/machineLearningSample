@@ -12,12 +12,15 @@ class SimpleDatasetLoader:
         if self.preprocessors is None :
             self.preprocessors = []
 
-    def load(self,imagePaths,verbose=-1):
+    def load(self,imagePaths,depth=3,verbose=-1):
         data = []
         labels = []
 
         for (i,imagePath) in enumerate(imagePaths):
             image = cv2.imread(imagePath)
+
+            if depth != 3:
+                image = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
 
             # Path to dataset/{class}/{image}.jpg
             label = imagePath.split(os.path.sep)[-2]
