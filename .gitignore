@@ -2,3 +2,4 @@ datasets
 .vscode
 *.iypc
 pyimagesearch/nn/__pycache__
+*.pyc
