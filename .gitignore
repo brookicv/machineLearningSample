@@ -1,5 +1,5 @@
 datasets
 .vscode
 *.iypc
-*.pyc
 pyimagesearch/nn/__pycache__
+*.pyc
