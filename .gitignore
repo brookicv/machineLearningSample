@@ -3,3 +3,4 @@ datasets
 *.iypc
 pyimagesearch/nn/__pycache__
 *.pyc
+*.tf
