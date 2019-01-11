@@ -16,12 +16,14 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import argparse
 import os
+import pickle
 
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-d","--dataset",required=True,help="path to input dataset")
 ap.add_argument("-m","--model",required=True,help="path to output model")
+ap.add_argument("-l","--lablebin",required=True,help="path to output label binarizer")
 
 args = vars(ap.parse_args())
 
@@ -40,6 +42,9 @@ sdl = simpleDatasetLoader.SimpleDatasetLoader(preprocessors=[sp,iap])
 (data,labels) = sdl.load(imagePaths,verbose=500)
 data = data.astype("float")/255.0
 
+lb = LabelBinarizer()
+labels = lb.fit_transform(labels)
+
 (trainX,testX,trainY,testY) = train_test_split(data,labels,test_size=0.25,random_state=42)
 
 trainY = LabelBinarizer().fit_transform(trainY)
@@ -54,8 +59,10 @@ model = Model(inputs=baseModel.input,outputs=headModel)
 
 # loop over all layers in the base model and freeze them 
 # so they will not be updated during the training process
-for layer in baseModel.layers:
+for layer in baseModel.layers[:15]:
     layer.trainable = False
+
+epochs = 1
 
 print("[INFO] compiling model...")
 opt = RMSprop(lr = 0.001)
@@ -63,24 +70,30 @@ model.compile(loss="categorical_crossentropy",optimizer=opt,metrics=["accuracy"]
 
 print("[INFO] training head...")
 H = model.fit_generator(aug.flow(trainX,trainY,batch_size=32),validation_data=(testX,testY),
-    epochs=25,steps_per_epoch=len(trainX)//32,verbose=1)
+    epochs=epochs,steps_per_epoch=len(trainX)//32,verbose=1)
 
 # save the model of network to disk
 print("[INFO] serializing network...")
 model.save(args["model"])
 
+# save hte label binarizer 
+print("[INFO] serializing label binarizer...")
+f = open(args["lablebin"],"wb")
+pickle.dump(lb,f)
+f.close()
+
 # evaluate the network
 print("[INFO] evaluating after initialization...")
 predictions = model.predict(testX,batch_size=32)
 print(classification_report(testY.argmax(axis=1),predictions.argmax(axis=1),
-    target_names=classNames))
+    target_names=lb.classes_))
 
 plt.style.use("ggplot")
 plt.figure()
-plt.plot(np.arange(0,25),H.history["loss"],label="train_loss")
-plt.plot(np.arange(0,25),H.history["val_loss"],label="val_loss")
-plt.plot(np.arange(0,25),H.history["acc"],label="acc")
-plt.plot(np.arange(0,25),H.history["val_acc"],label="val_acc")
+plt.plot(np.arange(0,epochs),H.history["loss"],label="train_loss")
+plt.plot(np.arange(0,epochs),H.history["val_loss"],label="val_loss")
+plt.plot(np.arange(0,epochs),H.history["acc"],label="acc")
+plt.plot(np.arange(0,epochs),H.history["val_acc"],label="val_acc")
 
 plt.title("Training Loss and Accuracy")
 plt.xlabel("Epoch #")

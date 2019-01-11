@@ -9,8 +9,8 @@ import pickle
 
 
 
-model = load_model("minivgg-handpose.tf")
-lb = pickle.loads(open("handpose.hd","rb").read())
+model = load_model("ft_handpose.h5")
+lb = pickle.loads(open("handposeLabels.pkl","rb").read())
 ## Grab camera input
 cap = cv2.VideoCapture(0)
 cv2.namedWindow('Original', cv2.WINDOW_NORMAL)
@@ -34,7 +34,7 @@ while True:
     
     cv2.imshow("handpose",roi)
 
-    roi = cv2.resize(roi,(32,32))
+    roi = cv2.resize(roi,(224,224))
     roi = roi.astype("float") / 255.0
     roi = img_to_array(roi)
     roi = np.expand_dims(roi,axis=0)
@@ -51,8 +51,8 @@ while True:
         preds = model.predict(roi)[0]
         
         idx = np.argmax(preds)
-        label = lb.classed_[indx]
+        label = lb.classes_[idx]
 
-        print("predict class:{},probability:{:.4f}".format(lable,preds[idx]))
+        print("predict class:{},probability:{:.4f}".format(label,preds[idx]))
     
     cv2.imshow("Original",frame)
