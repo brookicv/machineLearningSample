@@ -27,7 +27,7 @@ inputWidth = 32
 inputHeight = 32
 inputDepth = 3
 
-trainingEpochs = 50
+trainingEpochs = 500
 
 print("[INFO] loading images...")
 imagePaths = sorted(list(paths.list_images(args["dataset"])))
@@ -86,7 +86,7 @@ model.save(args["model"])
 # save hte label binarizer 
 print("[INFO] serializing label binarizer...")
 f = open(args["lablebin"],"wb")
-f.write(pickle.dump(lb))
+pickle.dump(lb,f)
 f.close()
 
 

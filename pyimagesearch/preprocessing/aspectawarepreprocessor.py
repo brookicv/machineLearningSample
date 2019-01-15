@@ -15,7 +15,7 @@ class AspectAwarePreprocessor:
     def process(self,image):
         # grab the dimentions of the image and then initialize 
         # the deltas to use when cropping
-        (h,w) = image[:2]
+        (h,w) = image.shape[:2]
         dW = 0
         dH = 0
 

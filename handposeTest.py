@@ -6,10 +6,11 @@ import numpy as np
 import argparse
 import imutils
 import pickle
+from pyimagesearch.preprocessing import aspectawarepreprocessor
 
 
 
-model = load_model("ft_handpose.h5")
+model = load_model("handpose.h5")
 lb = pickle.loads(open("handposeLabels.pkl","rb").read())
 ## Grab camera input
 cap = cv2.VideoCapture(0)
@@ -34,7 +35,7 @@ while True:
     
     cv2.imshow("handpose",roi)
 
-    roi = cv2.resize(roi,(224,224))
+    roi = cv2.resize(roi,(32,32))
     roi = roi.astype("float") / 255.0
     roi = img_to_array(roi)
     roi = np.expand_dims(roi,axis=0)

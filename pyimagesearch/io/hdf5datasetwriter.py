@@ -15,6 +15,7 @@ class HDF5DatasetWriter:
         self.db = h5py.File(outputPath, 'w')
         self.labels = self.db.create_dataset('labels', (dims[0],), dtype="int")
         self.data = self.db.create_dataset(dataKey,dims,dtype="float")
+        
 
         # store the buffer size, then initizlize the buffer itself along with the index into the database
         self.bufSize = bufSize
