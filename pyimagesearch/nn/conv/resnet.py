@@ -37,12 +37,12 @@ class ResNet:
         # the first block of the ResNet module are the 1x1 CONVS
         bn1 = BatchNormalization(axis=chanDim,epsilon=bnEps,momentum=bnMom)(data)
         act1 = Activation("relu")(bn1)
-        conv1 = Conv2D(int(K * 0.25),(1,1),use_bias=False,kernel_regularize=l2(reg))(act1)
+        conv1 = Conv2D(int(K * 0.25),(1,1),use_bias=False,kernel_regularizer=l2(reg))(act1)
 
         # the second block ot the ResNet module are the 1x1 CONVS
         bn2 = BatchNormalization(axis=chanDim,epsilon=bnEps,momentum=bnMom)(conv1)
         act2= Activation("relu")(bn2)
-        covn2 = Conv2D(int(K * 0.25),(3,3),strides=stride,padding="same",use_bias=False,kernel_regularize=l2(reg))(act2)
+        covn2 = Conv2D(int(K * 0.25),(3,3),strides=stride,padding="same",use_bias=False,kernel_regularizer=l2(reg))(act2)
 
         # the third block of the ResNet module is another set of 1x1 CONVS
         bn3 =  bn2 = BatchNormalization(axis=chanDim,epsilon=bnEps,momentum=bnMom)(covn2)
@@ -59,7 +59,7 @@ class ResNet:
         return x
     
     @staticmethod
-    def build(width,height,depth,classes,stages,filters,reg=0.0001,bnEps=2e-5,bnMom=0.9,datase="cifar"):
+    def build(width,height,depth,classes,stages,filters,reg=0.0001,bnEps=2e-5,bnMom=0.9,dataset="cifar"):
 
         inputShape=(height,width,depth)
         chanDim = -1
@@ -71,8 +71,8 @@ class ResNet:
         inputs = Input(shape=inputShape)
         x = BatchNormalization(axis=chanDim,epsilon=bnEps,momentum=bnMom)(inputs)
 
-        if dataset = "cifar":
-            x = Conv2D(filters[0],(3,3),use_bias=False,padding="same",kernel_regularize=l2(reg))(x)
+        if dataset == "cifar":
+            x = Conv2D(filters[0],(3,3),use_bias=False,padding="same",kernel_regularizer=l2(reg))(x)
         
         for i in range(0,len(stages)):
             
@@ -83,7 +83,7 @@ class ResNet:
                 x = ResNet.residual_module(x,filters[i + 1],(1,1),chanDim,bnEps=bnEps,bnMom=bnMom)
             
         
-        x = BatchNormalization(axis=chanDim,epsion=bnEps,momentum=bnMom)(x)
+        x = BatchNormalization(axis=chanDim,epsilon=bnEps,momentum=bnMom)(x)
         x = Activation("relu")(x)
         x = AveragePooling2D((8,8))(x)
 
@@ -91,7 +91,7 @@ class ResNet:
         x = Dense(classes,kernel_regularizer=l2(reg))(x)
         x =  Activation("softmax")(x)
 
-        model = Model(nputs,x,name="resnet")
+        model = Model(inputs,x,name="resnet")
 
         return model
 

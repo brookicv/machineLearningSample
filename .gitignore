@@ -4,3 +4,4 @@ datasets
 pyimagesearch/nn/__pycache__
 *.pyc
 *.tf
+output
