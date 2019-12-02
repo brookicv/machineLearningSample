@@ -1,6 +1,8 @@
 datasets
 .vscode
 *.iypc
+
+__pycache__
 pyimagesearch/nn/__pycache__
 *.pyc
 *.tf
