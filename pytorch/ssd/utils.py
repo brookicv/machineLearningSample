@@ -307,3 +307,80 @@ def find_jaccard_overlap(set_1,set_2):
     return intersection / union
 
 
+def adjust_learning_rate(optimizer,scale):
+
+    for param_group in optimizer.param_groups:
+        param_group["lr"] = param_group["lr"] * scale
+    
+    print(print("DECAYING learning rate.\n The new LR is %f\n" % (optimizer.param_groups[1]['lr'],)))
+
+def accuracy(scores,targets,k):
+    """
+    计算 top-k精度
+    scores: 预测的score
+    targets: true labels
+    """
+    batch_size = targets.size(0)
+    _,ind = scores.topk(k,1,True,True)
+    correct = ind.eq(targets.view(-1,1).expand_as(ind))
+    correct_total = correct.view(-1).float().sum()
+    return correct_total.item() * (100 / batch_size)
+
+def save_checkpoint(epoch, epochs_since_improvement, model, optimizer, loss, best_loss, is_best):
+    """
+    Save model checkpoint.
+    :param epoch: epoch number
+    :param epochs_since_improvement: number of epochs since last improvement
+    :param model: model
+    :param optimizer: optimizer
+    :param loss: validation loss in this epoch
+    :param best_loss: best validation loss achieved so far (not necessarily in this checkpoint)
+    :param is_best: is this checkpoint the best so far?
+    """
+    state = {'epoch': epoch,
+             'epochs_since_improvement': epochs_since_improvement,
+             'loss': loss,
+             'best_loss': best_loss,
+             'model': model,
+             'optimizer': optimizer}
+    filename = 'checkpoint_ssd300.pth.tar'
+    torch.save(state, filename)
+    # If this checkpoint is the best so far, store a copy so it doesn't get overwritten by a worse checkpoint
+    if is_best:
+        torch.save(state, 'BEST_' + filename)
+
+
+class AverageMeter(object):
+    """
+    Keeps track of most recent, average, sum, and count of a metric.
+    """
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+
+def clip_gradient(optimizer, grad_clip):
+    """
+    Clips gradients computed during backpropagation to avoid explosion of gradients.
+    :param optimizer: optimizer with the gradients to be clipped
+    :param grad_clip: clip value
+    """
+    for group in optimizer.param_groups:
+        for param in group['params']:
+            if param.grad is not None:
+                param.grad.data.clamp_(-grad_clip, grad_clip)
+
+
+
