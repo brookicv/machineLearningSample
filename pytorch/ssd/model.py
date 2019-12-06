@@ -342,3 +342,178 @@ class SSD300(nn.Module):
         prior_boxes.clamp_(0, 1)  # (8732, 4)
 
         return prior_boxes
+    
+    def detect_objects(self, predicted_locs, predicted_scores, min_score, max_overlap, top_k):
+        
+        batch_size = predicted_locs.size(0)
+        n_pirors = self.prior_cxcy.size(0)
+        predicted_scores = F.softmax(predicted_scores, dim=2)  # (N,8732,n_classes)
+        
+        all_images_boxes = list()
+        all_images_labels = list()
+        all_images_scores = list()
+
+        assert n_pirors == predicted_locs.size(1) == predicted_scores.size(1)
+
+        for i in range(batch_size):
+
+            decoded_locs = cxcy_to_xy(gcxcy_to_cxcy(predicted_locs[i], self.prior_cxcy))  # (8732,4)
+            
+            image_boxes = list()
+            image_labels = list()
+            image_scores = list()
+
+            for c in range(1, self.n_classes):
+                class_scores = predicted_scores[i][:, c]
+                score_above_min_score = class_scores > min_score
+                n_above_min_score = score_above_min_score.sum().item()
+
+                if n_above_min_score == 0:
+                    continue
+                class_scores = class_scores[score_above_min_score]
+                class_decoded_locs = decoded_locs[score_above_min_score]
+
+                class_scores, sort_ind = class_scores.sort(dim=0, descending=True)
+                class_decoded_locs = class_decoded_locs[sort_ind]
+
+                overlap = find_jaccard_overlap(class_decoded_locs, class_decoded_locs)
+                
+                # Non-Maximum Suppression NMS
+                suppress = torch.zeros((n_above_min_score), dtype=torch.uint8).to(device)
+                
+                for box in range(class_decoded_locs.size(0)):
+                    if suppress[box] == 1:
+                        continue
+                    
+                    suppress = torch.max(suppress, overlap[box] > max_overlap)
+                    
+                    suppress[box] = 0
+                    
+                image_boxes.append(class_decoded_locs[1 - suppress])
+                image_labels.append(torch.LongTensor(1 - suppress).sum().item() * [c]).to(device)
+                image_scores.append(class_scores[1 - suppress])
+
+            if len(image_boxes) == 0:
+                image_boxes.append(torch.FloatTensor([[0.,0.,1.,1.]]).to(device))
+                image_labels.append(torch.LongTensor([0]).to(device))
+                image_scores.append(class_scores[1 - suppress])
+
+            image_boxes=torch.cat(image_boxes, dim=0)
+            image_labels=torch.cat(image_labels, dim=0)
+            image_scores=torch.cat(image_scores, dim=0)
+            n_objects=image_socres.size(0)
+            
+            if n_objects > top_k:
+                image_scores, sort_ind = image_socre.sort(dim=0, keepdim=True)
+                image_scores = image_scores[:top_k]
+                image_boxes = image_boxes[sort_ind][:top_k]
+                image_labels = image_labels[sort_ind][:top_k]
+
+            all_images_boxes.append(image_boxes)
+            all_images_labels.append(image_labels)
+            all_images_scores.append(image_scores)
+
+        return all_images_boxes, all_images_labels, all_images_scores
+        
+class MultiBoxLoss(nn.Module):
+
+    def __init__(self, prior_cxcy, threshold=0.5, neg_pos_ratio=3, alpha=1.):
+        super(MultiBoxLoss, self).__init__()
+        
+        self.prior_cxcy=prior_cxcy
+        self.prior_xy=cxcy_to_xy(self.prior_cxcy)
+        self.threshold=threshold
+        self.neg_pos_ratio=neg_pos_ratio
+        self.alpha=alpha
+        
+        self.smooth_l1=nn.L1Loss()
+        self.cross_entropy=nn.CrossEntropyLoss(reduce=False)
+        
+    def forward(self, predicted_locs, predicted_scores, boxes, labels):
+        """
+        根据 gt 计算loss
+        : param predicted_locs :预测得到的相对于8732个边框的偏移量 (N,8732,4)
+        : param predicetd_scores: 每个边框的所属某个类别的可能 (N,8732,n_classes)
+        : param boxes: 每个图像的真是边框，具有N个tensor的list，每个tensor包含一个图像的真是目标边框
+        : param labels: 和边框相对应，每个边框的类别
+        """
+        batch_size = predicted_locs.size(0)
+        n_priors = self.prior_cxcy.size(0)
+        n_classes = predicted_scores.size(2)
+
+        assert n_priors == predicted_locs.size(1) == predicted_scores.size(1)
+
+        true_locs = torch.zeros((batch_size, n_priors, 4), dtype=torch.float).to(device)  # N ,8732,4 
+        true_classes = torch.zeros((batch_size, n_priors), dtype=torch.long).to(device)  # N ,8732
+        
+        # for each image
+        # 针对每张图像构建训练数据
+        # 根据真实边框和prior box的jaccard比，来计算某个prior box用来预测那个目标
+        for i in range(batch_size):
+            n_objects = boxes[i].size(0)
+
+            overlap = find_jaccard_overlap(boxes[i], self.prior_xy)  # (nobjects,8732)
+            
+            # For each prior, find the object that has the maximum overlap
+            # 针对 prior，找出和其具有针对iou的边框
+            # overlap_for_each_prior ，iou的值
+            # object_for_each_prior ，边框的index
+            overlap_for_each_prior, object_for_each_prior = overlap.max(dim=0)  # 8732
+
+            # 和每个prior有最大iou的真实边框，即该真实边框和prior box相匹配。 
+            # 但是也存在一种情况，一个真实边框可能和每一个prior box 都不匹配。
+            # 这样就会导致某个边框，不属于任何一个prior，也就不会参与训练。
+            # 为了避免上述情况，计算和每个边框具有最大IOU的prior，也认为该真实边框和prior box相匹配。
+
+            # 一个真实边框可能和多个prior box相匹配
+
+            # 对真实边框，找出和其具有最大iou的prior box
+            # prior_for_each_object, 具有最大iou的index
+            _, prior_for_each_object = overlap.max(dim=1)
+            
+            # 手动将符合最大iou的边框匹配个相应的prior box
+            object_for_each_prior[prior_for_each_object] = torch.LongTensor(range(n_objects)).to(device)
+
+            # 设置一个大于阈值0.5的 iou
+            orverlap_for_each_prior[prior_for_each_object] = 1.
+            
+            # labels for each prior
+            # prior box匹配边框的类别
+            label_for_each_prior = labels[i][object_for_each_prior]
+
+            # 小于阈值的prior 设置为背景
+            label_for_each_prior[overlap_for_each_prior < self.threshold] = 0
+
+            # 匹配后的结果
+            true_classes[i] = label_for_each_prior
+            
+            # 每个边框相对于其匹配prior box的偏移量
+            true_locs[i] = cxcy_to_gcxgcy(xy_to_cxcy(boxes[i][object_for_each_prior]), self.prior_cxcy)
+        
+        
+        positive_priors = true_class != 0
+
+        # location loss
+
+        # 是背景的prior box不参与loss的计算
+        loc_loss = self.smooth_l1(predicted_locs[positive_priors], true_locs[positive_priors])
+        
+        # confidence loss
+        n_positives = positive_priors.sum(dim=1)
+        n_hard_negatives = self.neg_pos_ratio * n_positives
+
+        conf_loss_all = self.cross_entropy(predicted_scores.view(-1, n_classes), true_classes.view(-1))  # n * 8732
+        conf_loss_all = conf_loss_all.view(batch_size, n_priors)  # (n,8732)
+        
+        conf_loss_pos = conf_loss_all[positive_priors]  # 正样本损失
+        
+        conf_loss_neg = conf_loss_all.clone()
+        conf_loss_neg[positive_priors] = 0  # 忽略正样本损失
+        conf_loss_neg, _ = conf_loss_neg.sort(dim=1, descending=True)  # 负样本损失从大到小排序
+        hardness_ranks = torch.LongTensor(range(n_priors)).unsqueeze(0).expand_as(conf_loss_neg).to(device)
+        hard_negatives = hardness_ranks < n_hard_negatives.unsqueeze(1)
+        conf_loss_hard_neg = conf_loss_neg[hard_negatives]
+
+        conf_loss = (conf_loss_hard_neg.sum() + conf_loss_pos.sum()) / n_positives.sum().float()
+
+        return conf_loss + self.alpha * loc_loss
