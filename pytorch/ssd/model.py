@@ -458,7 +458,7 @@ class MultiBoxLoss(nn.Module):
             # 针对 prior，找出和其具有针对iou的边框
             # overlap_for_each_prior ，iou的值
             # object_for_each_prior ，边框的index
-            overlap_for_each_prior, object_for_each_prior = overlap.max(dim=0)  # 8732
+            overlap_for_each_prior, object_for_each_prior = overlap.max(dim=0)  # (8732)
 
             # 和每个prior有最大iou的真实边框，即该真实边框和prior box相匹配。 
             # 但是也存在一种情况，一个真实边框可能和每一个prior box 都不匹配。
@@ -469,7 +469,7 @@ class MultiBoxLoss(nn.Module):
 
             # 对真实边框，找出和其具有最大iou的prior box
             # prior_for_each_object, 具有最大iou的index
-            _, prior_for_each_object = overlap.max(dim=1)
+            _, prior_for_each_object = overlap.max(dim=1) # (n_boject)
             
             # 手动将符合最大iou的边框匹配个相应的prior box
             object_for_each_prior[prior_for_each_object] = torch.LongTensor(range(n_objects)).to(device)
